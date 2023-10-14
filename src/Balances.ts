@@ -21,6 +21,8 @@ export class Balances extends RuntimeModule<BalancesConfig> {
 
   @state() public circulatingSupply = State.from<UInt64>(UInt64);
 
+  @state() public random = State.from<UInt64>(UInt64);
+
   @runtimeMethod()
   public setBalance(address: PublicKey, amount: UInt64) {
     const circulatingSupply = this.circulatingSupply.get();

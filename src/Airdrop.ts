@@ -27,7 +27,7 @@ import { inject } from "tsyringe";
      * this should be able to be reset by the rewards issuer for a new airdrop and
      * each airdrop should include unclaimed rewards from previous airdrops
      */
-    @state() public airdropNullifiers = StateMap.from<PublicKey, Bool>(PublicKey, Bool);
+    @state() public claimed = StateMap.from<PublicKey, Bool>(PublicKey, Bool);
 
     //public constructor(@inject("Balances") balances: Balances) {
     //    super();
@@ -40,13 +40,14 @@ import { inject } from "tsyringe";
     public setAirdropCommitment(commitment: Field) {
       // this is currently unconstrained, anyone can set the commitment
       this.commitment.set(commitment);
-      // reset the nullifiers
-      this.airdropNullifiers = StateMap.from<PublicKey, Bool>(PublicKey, Bool);
     }
 
     /**
      * Method to claim an amount from the airdrop,
      * using a proof of being a part of the airdrop
+     * 
+     * @remarks -- because the claim method signature includes
+     * the witness we are telling the sequencer who the claimer is
      * @param airdropProof
      */
     @runtimeMethod()
@@ -56,8 +57,11 @@ import { inject } from "tsyringe";
       // get the commitment from the state
       const commitment = this.commitment.get();
       // check if the user has already claimed
-      const nullifier = this.airdropNullifiers.get(address).orElse(Bool(false));
-      nullifier.assertEquals(Bool(false), "User has already claimed airdrop");
+      const isClaimed = this.claimed.get(address).orElse(Bool(false));
+      assert(
+        isClaimed.equals(Bool(false)),
+        "User has already claimed airdrop"
+      )
       // check if the user is eligible to claim
       const key = Poseidon.hash(address.toFields());
       const value = Provable.witness(UInt64, () => airdropAmount);
@@ -66,13 +70,13 @@ import { inject } from "tsyringe";
         Poseidon.hash(value.toFields())
       );
       // check if the computed key matches the key in the witness
-      key.assertEquals(
-        computedKey,
+      assert(
+        key.equals(computedKey),
         "Computed key from witness does not match the required key"
       );
       // check if the computed root matches the on-chain commitment
-      console.log("Computed Root: ", computedRoot.toBigInt());
-      console.log("On-Chain Commitment: ", commitment.value.toBigInt());
+      Provable.log("Computed Root: ", computedRoot.toBigInt());
+      Provable.log("On-Chain Commitment: ", commitment.value.toBigInt());
       assert(
         computedRoot.equals(commitment.value),
         "Airdrop proof commitment does not match on-chain commitment"
@@ -82,7 +86,7 @@ import { inject } from "tsyringe";
       //const userBalance = this.balances.get(address).value;
       //this.balances.setBalance(this.transaction.sender, userBalance.add(value));
       // add the nullifier to the list of nullifiers
-      this.airdropNullifiers.set(address, Bool(true));
+      this.claimed.set(address, Bool(true));
     }
   }
   
