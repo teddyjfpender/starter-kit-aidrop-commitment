@@ -42,6 +42,11 @@ import { inject } from "tsyringe";
       this.commitment.set(commitment);
     }
 
+    @runtimeMethod()
+    private getAirdropCommitment(): Field {
+        return this.commitment.get().value;
+    }
+
     /**
      * Method to claim an amount from the airdrop,
      * using a proof of being a part of the airdrop
@@ -51,11 +56,16 @@ import { inject } from "tsyringe";
      * @param airdropProof
      */
     @runtimeMethod()
-    public claim(witness: MerkleMapWitness, airdropAmount: UInt64) {
+    public claim(witness: MerkleMapWitness, airdropAmount: Field) {
       // get the public key of the transaction sender
       const address = this.transaction.sender;
       // get the commitment from the state
-      const commitment = this.commitment.get();
+      const commitment = this.getAirdropCommitment();
+      Provable.log("On-Chain Commitment: ", commitment.toBigInt());
+      assert(
+        commitment.greaterThan(Field(0)),
+        "Airdrop commitment has not been set"
+        );
       // check if the user has already claimed
       const isClaimed = this.claimed.get(address).orElse(Bool(false));
       assert(
@@ -64,10 +74,9 @@ import { inject } from "tsyringe";
       )
       // check if the user is eligible to claim
       const key = Poseidon.hash(address.toFields());
-      const value = Provable.witness(UInt64, () => airdropAmount);
       // check if the user is eligible to claim
       const [computedRoot, computedKey] = witness.computeRootAndKey(
-        Poseidon.hash(value.toFields())
+        Poseidon.hash([airdropAmount])
       );
       // check if the computed key matches the key in the witness
       assert(
@@ -76,9 +85,8 @@ import { inject } from "tsyringe";
       );
       // check if the computed root matches the on-chain commitment
       Provable.log("Computed Root: ", computedRoot.toBigInt());
-      Provable.log("On-Chain Commitment: ", commitment.value.toBigInt());
       assert(
-        computedRoot.equals(commitment.value),
+        computedRoot.equals(commitment),
         "Airdrop proof commitment does not match on-chain commitment"
       );
       // get the users balance

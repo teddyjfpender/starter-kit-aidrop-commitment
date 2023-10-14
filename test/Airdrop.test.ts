@@ -1,5 +1,5 @@
 import { TestingAppChain } from "@proto-kit/sdk";
-import { MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "snarkyjs";
+import { Field, MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "snarkyjs";
 import { Balances } from "../src/Balances";
 import { Airdrop } from "../src/Airdrop";
 
@@ -12,7 +12,7 @@ describe("Balances", () => {
   let bobPrivateKey: PrivateKey;
   let bobPublicKey: PublicKey;
   let airdropTree: MerkleMap;
-  let airdropAmount: UInt64;
+  let airdropAmount: Field;
   
   beforeAll(() => {
     totalSupply = UInt64.from(10_000);
@@ -39,14 +39,14 @@ describe("Balances", () => {
     bobPublicKey = bobPrivateKey.toPublicKey();
 
     // the desired airdrop amount for bob
-    airdropAmount = UInt64.from(1000);
+    airdropAmount = Field(1000);
 
     // populate the airdrop tree
     airdropTree = new MerkleMap();
     airdropTree.set(
       // the key is the hash of the public key
       Poseidon.hash(bobPublicKey.toFields()),
-      Poseidon.hash(UInt64.from(airdropAmount).toFields())
+      Poseidon.hash([airdropAmount])
     );
   })
 
@@ -65,6 +65,10 @@ describe("Balances", () => {
     await tx1.sign();
     await tx1.send();
 
+    const tx1_1 = appChain.transaction(alicePublicKey, () => {
+        balances.setRandom(Field(1));
+        }, { nonce: 1 });
+
     const startTime = new Date().getTime();
     const block1 = await appChain.produceBlock();
     const endTime = new Date().getTime();
@@ -82,7 +86,7 @@ describe("Balances", () => {
 
     const tx2 = appChain.transaction(alicePublicKey, () => {
       balances.sendTo(bobPrivateKey.toPublicKey(), UInt64.from(100));
-    }, { nonce: 1 });
+    }, { nonce: 2 });
 
     await tx2.sign();
     await tx2.send();
@@ -97,7 +101,7 @@ describe("Balances", () => {
       bobPrivateKey.toPublicKey()
     )
 
-    expect(bobBalance?.toBigInt()).toBe(100n);
+    expect(bobBalance?.toBigInt()).toBe(101n);
 
 
     // resolve the airdrop module
@@ -106,7 +110,7 @@ describe("Balances", () => {
     // set the rewards merkle tree root
     const tx3 = appChain.transaction(alicePublicKey, () => {
       airdrop.setAirdropCommitment(airdropTree.getRoot());
-    });
+    }, { nonce: 3});
 
     await tx3.sign();
     await tx3.send();
@@ -122,6 +126,7 @@ describe("Balances", () => {
     expect(block3?.txs[0].status).toBe(true);
 
     // bob claims his airdrop
+    appChain.setSigner(bobPrivateKey);
     const tx4 = appChain.transaction(bobPublicKey, () => {
       airdrop.claim(airdropTree.getWitness(Poseidon.hash(bobPublicKey.toFields())), airdropAmount);
     });

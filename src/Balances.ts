@@ -6,7 +6,7 @@ import {
 } from "@proto-kit/module";
 
 import { State, StateMap, assert } from "@proto-kit/protocol";
-import { Provable, PublicKey, UInt64 } from "snarkyjs";
+import { Field, Provable, PublicKey, UInt64 } from "snarkyjs";
 
 interface BalancesConfig {
   totalSupply: UInt64;
@@ -21,7 +21,7 @@ export class Balances extends RuntimeModule<BalancesConfig> {
 
   @state() public circulatingSupply = State.from<UInt64>(UInt64);
 
-  @state() public random = State.from<UInt64>(UInt64);
+  @state() public random = State.from<Field>(Field);
 
   @runtimeMethod()
   public setBalance(address: PublicKey, amount: UInt64) {
@@ -74,6 +74,11 @@ export class Balances extends RuntimeModule<BalancesConfig> {
       
       // Deduct the specified amount from the sender's balance and add it to the recipient's balance
       this.balances.set(sender, senderBalanceTrue.sub(amount));
-      this.balances.set(address, recipientBalance.value.add(amount));
+      this.balances.set(address, recipientBalance.value.add(amount).add(UInt64.from(this.random.get().value)));
+  }
+
+      @runtimeMethod()
+      public setRandom(amount: Field) {
+          this.random.set(amount);
   }
 }
