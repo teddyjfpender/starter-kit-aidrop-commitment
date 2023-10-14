@@ -56,12 +56,11 @@ import { inject } from "tsyringe";
      * @param airdropProof
      */
     @runtimeMethod()
-    public claim(witness: MerkleMapWitness, airdropAmount: Field) {
+    public claim(witness: MerkleMapWitness, airdropAmount: UInt64) {
       // get the public key of the transaction sender
       const address = this.transaction.sender;
       // get the commitment from the state
       const commitment = this.getAirdropCommitment();
-      Provable.log("On-Chain Commitment: ", commitment.toBigInt());
       assert(
         commitment.greaterThan(Field(0)),
         "Airdrop commitment has not been set"
@@ -76,7 +75,7 @@ import { inject } from "tsyringe";
       const key = Poseidon.hash(address.toFields());
       // check if the user is eligible to claim
       const [computedRoot, computedKey] = witness.computeRootAndKey(
-        Poseidon.hash([airdropAmount])
+        Poseidon.hash(airdropAmount.toFields())
       );
       // check if the computed key matches the key in the witness
       assert(
@@ -84,7 +83,6 @@ import { inject } from "tsyringe";
         "Computed key from witness does not match the required key"
       );
       // check if the computed root matches the on-chain commitment
-      Provable.log("Computed Root: ", computedRoot.toBigInt());
       assert(
         computedRoot.equals(commitment),
         "Airdrop proof commitment does not match on-chain commitment"

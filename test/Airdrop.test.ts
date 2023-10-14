@@ -1,7 +1,8 @@
 import { TestingAppChain } from "@proto-kit/sdk";
-import { Field, MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "snarkyjs";
+import { MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "snarkyjs";
 import { Balances } from "../src/Balances";
 import { Airdrop } from "../src/Airdrop";
+import { PrivateMempool } from "@proto-kit/sequencer";
 
 
 describe("Balances", () => {
@@ -12,7 +13,7 @@ describe("Balances", () => {
   let bobPrivateKey: PrivateKey;
   let bobPublicKey: PublicKey;
   let airdropTree: MerkleMap;
-  let airdropAmount: Field;
+  let airdropAmount: UInt64;
   
   beforeAll(() => {
     totalSupply = UInt64.from(10_000);
@@ -39,14 +40,14 @@ describe("Balances", () => {
     bobPublicKey = bobPrivateKey.toPublicKey();
 
     // the desired airdrop amount for bob
-    airdropAmount = Field(1000);
+    airdropAmount = UInt64.from(1000);
 
     // populate the airdrop tree
     airdropTree = new MerkleMap();
     airdropTree.set(
       // the key is the hash of the public key
-      Poseidon.hash(bobPublicKey.toFields()),
-      Poseidon.hash([airdropAmount])
+      Poseidon.hash(alicePublicKey.toFields()),
+      Poseidon.hash(UInt64.from(airdropAmount).toFields())
     );
   })
 
@@ -65,10 +66,6 @@ describe("Balances", () => {
     await tx1.sign();
     await tx1.send();
 
-    const tx1_1 = appChain.transaction(alicePublicKey, () => {
-        balances.setRandom(Field(1));
-        }, { nonce: 1 });
-
     const startTime = new Date().getTime();
     const block1 = await appChain.produceBlock();
     const endTime = new Date().getTime();
@@ -86,7 +83,7 @@ describe("Balances", () => {
 
     const tx2 = appChain.transaction(alicePublicKey, () => {
       balances.sendTo(bobPrivateKey.toPublicKey(), UInt64.from(100));
-    }, { nonce: 2 });
+    }, { nonce: 1 });
 
     await tx2.sign();
     await tx2.send();
@@ -101,7 +98,7 @@ describe("Balances", () => {
       bobPrivateKey.toPublicKey()
     )
 
-    expect(bobBalance?.toBigInt()).toBe(101n);
+    expect(bobBalance?.toBigInt()).toBe(100n);
 
 
     // resolve the airdrop module
@@ -110,7 +107,7 @@ describe("Balances", () => {
     // set the rewards merkle tree root
     const tx3 = appChain.transaction(alicePublicKey, () => {
       airdrop.setAirdropCommitment(airdropTree.getRoot());
-    }, { nonce: 3});
+    }, { nonce: 2});
 
     await tx3.sign();
     await tx3.send();
@@ -125,26 +122,34 @@ describe("Balances", () => {
     expect(airdropCommitment?.toBigInt()).toBe(airdropTree.getRoot().toBigInt());
     expect(block3?.txs[0].status).toBe(true);
 
-    // bob claims his airdrop
-    appChain.setSigner(bobPrivateKey);
-    const tx4 = appChain.transaction(bobPublicKey, () => {
-      airdrop.claim(airdropTree.getWitness(Poseidon.hash(bobPublicKey.toFields())), airdropAmount);
-    });
+    // Alice claims her airdrop
+    const tx4 = appChain.transaction(alicePublicKey, () => {
+      airdrop.claim(airdropTree.getWitness(Poseidon.hash(alicePublicKey.toFields())), airdropAmount);
+    }, { nonce: 3 });
 
     await tx4.sign();
     await tx4.send();
 
+    console.log("tx4: ", tx4);
+    const privateMempool = appChain.sequencer.resolveOrFail(
+        "Mempool",
+        PrivateMempool
+    )
+
+    const txs = await privateMempool.getTxs();
+    console.log("txs: ", txs);
+
     const startTimeClaim = new Date().getTime();
     const block4 = await appChain.produceBlock();
     const endTimeClaim = new Date().getTime();
-    console.log(`Bob Claim, Block Production time (1 txs): ${endTimeClaim - startTimeClaim} milliseconds`);
+    console.log(`Alice Claim, Block Production time (1 txs): ${endTimeClaim - startTimeClaim} milliseconds`);
 
     expect(block4?.txs[0].status).toBe(true);
-    // get bob's balance
-    const bobBalanceAfterClaim = await appChain.query.runtime.Balances.balances.get(
-      bobPublicKey
+    // get alice's new balance
+    const aliceBalanceAfterClaim = await appChain.query.runtime.Balances.balances.get(
+      alicePublicKey
     );
 
-    expect(bobBalanceAfterClaim?.toBigInt()).toBe(1100n);
+    expect(aliceBalanceAfterClaim?.toBigInt()).toBe(1100n);
   });
 });
