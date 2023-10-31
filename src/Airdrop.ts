@@ -6,9 +6,9 @@ import {
 } from "@proto-kit/module";
 
 import { State, StateMap, assert } from "@proto-kit/protocol";
-import { Bool, Field, MerkleMapWitness, Poseidon, Provable, PublicKey, UInt64 } from "snarkyjs";
+import { Bool, Field, MerkleMapWitness, Poseidon, Provable, PublicKey, UInt64 } from "o1js";
 import { inject } from "tsyringe";
-//import { Balances } from "./Balances";
+import { Balances } from "./Balances";
   
   /**
    * `Airdrop` is a runtime module responsible for managing claimable airdrops.
@@ -29,9 +29,9 @@ import { inject } from "tsyringe";
      */
     @state() public claimed = StateMap.from<PublicKey, Bool>(PublicKey, Bool);
 
-    //public constructor(@inject("Balances") balances: Balances) {
-    //    super();
-    //}
+    public constructor(@inject("Balances") public balances: Balances) {
+        super();
+    }
     
     /**
      * Claim tokens from the rewards merkle tree.
@@ -88,9 +88,8 @@ import { inject } from "tsyringe";
         "Airdrop proof commitment does not match on-chain commitment"
       );
       // get the users balance
-      // TODO: this interoperability doesn't work yet...
-      //const userBalance = this.balances.get(address).value;
-      //this.balances.setBalance(this.transaction.sender, userBalance.add(value));
+      const userBalance = this.balances.balances.get(address).value;
+      this.balances.setBalance(this.transaction.sender, airdropAmount);
       // add the nullifier to the list of nullifiers
       this.claimed.set(address, Bool(true));
     }

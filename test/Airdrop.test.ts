@@ -1,9 +1,8 @@
-import { TestingAppChain } from "@proto-kit/sdk";
-import { MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "snarkyjs";
-import { Balances } from "../src/Balances";
-import { Airdrop } from "../src/Airdrop";
-import { PrivateMempool } from "@proto-kit/sequencer";
+import "reflect-metadata";
 
+import { TestingAppChain } from "@proto-kit/sdk";
+import { MerkleMap, Poseidon, PrivateKey, PublicKey, UInt64 } from "o1js";
+import { Balances, Airdrop } from "../src";
 
 describe("Balances", () => {
   let appChain: TestingAppChain<{ Balances: typeof Balances; Airdrop: typeof Airdrop}>;
@@ -40,14 +39,14 @@ describe("Balances", () => {
     bobPublicKey = bobPrivateKey.toPublicKey();
 
     // the desired airdrop amount for bob
-    airdropAmount = UInt64.from(1000);
+    airdropAmount = UInt64.from(100);
 
     // populate the airdrop tree
     airdropTree = new MerkleMap();
     airdropTree.set(
       // the key is the hash of the public key
       Poseidon.hash(alicePublicKey.toFields()),
-      Poseidon.hash(UInt64.from(airdropAmount).toFields())
+      Poseidon.hash(airdropAmount.toFields())
     );
   })
 
@@ -58,7 +57,7 @@ describe("Balances", () => {
     appChain.setSigner(alicePrivateKey);
     // this is almost equivalent to obtaining the contract ABI in solidity
     const balances = appChain.runtime.resolve("Balances");
-
+    // set alice's balance to 1000
     const tx1 = appChain.transaction(alicePublicKey, () => {
       balances.setBalance(alicePublicKey, UInt64.from(1000));
     });
@@ -78,9 +77,8 @@ describe("Balances", () => {
     expect(block1?.txs[0].status).toBe(true);
     expect(aliceBalance?.toBigInt()).toBe(1000n);
 
-    // send tokens to Bob
-    const bobPrivateKey = PrivateKey.random();
-
+    // send tokens to Bob    
+    // alice's new balance is 900
     const tx2 = appChain.transaction(alicePublicKey, () => {
       balances.sendTo(bobPrivateKey.toPublicKey(), UInt64.from(100));
     }, { nonce: 1 });
@@ -95,7 +93,7 @@ describe("Balances", () => {
 
     // check bob has 100 tokens
     const bobBalance = await appChain.query.runtime.Balances.balances.get(
-      bobPrivateKey.toPublicKey()
+      bobPublicKey
     )
 
     expect(bobBalance?.toBigInt()).toBe(100n);
@@ -130,15 +128,6 @@ describe("Balances", () => {
     await tx4.sign();
     await tx4.send();
 
-    console.log("tx4: ", tx4);
-    const privateMempool = appChain.sequencer.resolveOrFail(
-        "Mempool",
-        PrivateMempool
-    )
-
-    const txs = await privateMempool.getTxs();
-    console.log("txs: ", txs);
-
     const startTimeClaim = new Date().getTime();
     const block4 = await appChain.produceBlock();
     const endTimeClaim = new Date().getTime();
@@ -150,6 +139,6 @@ describe("Balances", () => {
       alicePublicKey
     );
 
-    expect(aliceBalanceAfterClaim?.toBigInt()).toBe(1100n);
+    expect(aliceBalanceAfterClaim?.toBigInt()).toBe(1000n);
   });
 });

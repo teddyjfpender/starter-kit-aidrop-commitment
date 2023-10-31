@@ -1,6 +1,6 @@
 import { TestingAppChain } from "@proto-kit/sdk";
-import { PrivateKey, UInt64 } from "snarkyjs";
-import { Balances } from "../src/Balances";
+import { PrivateKey, UInt64 } from "o1js";
+import { Balances } from "../src";
 import { log } from "@proto-kit/common";
 
 log.setLevel("ERROR");
@@ -42,7 +42,7 @@ describe("Balances", () => {
       alice
     );
 
-    expect(block1?.txs[0].status, block1?.txs[0].statusMessage).toBe(true);
+    expect(block1?.txs[0].status).toBe(true);
     expect(aliceBalance?.toBigInt()).toBe(1000n);
   });
 });

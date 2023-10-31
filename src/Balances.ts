@@ -6,7 +6,7 @@ import {
 } from "@proto-kit/module";
 
 import { State, StateMap, assert } from "@proto-kit/protocol";
-import { Field, Provable, PublicKey, UInt64 } from "snarkyjs";
+import { Field, Provable, PublicKey, UInt64 } from "o1js";
 
 interface BalancesConfig {
   totalSupply: UInt64;
